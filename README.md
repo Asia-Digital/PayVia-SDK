@@ -459,4 +459,5 @@ Use PayPal Sandbox credentials and PayPal Sandbox accounts.
 - **API Base URL**: https://api.payvia.site
 - **Sample Extension**: `sample-extension/` in this repo
 - **Sample SaaS App**: `sample-saas/` in this repo
-- **MCP Server** (for AI agents): See the [PayVia repo](https://github.com/GuyRonnen/PayVia/tree/master/agentic)
+- **MCP Server** (for AI agents): See [`mcp-server/`](mcp-server/) in this repo
+- **AI Agent Skill**: See [`skill.md`](skill.md) in this repo
