@@ -1,0 +1,8 @@
+{
+  "name": "sample-saas",
+  "version": "1.0.0",
+  "description": "PayVia SaaS Demo Website",
+  "scripts": {
+    "start": "npx http-server -p 8080"
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "name": "payvia-sdk",
+  "version": "1.1.4",
+  "description": "A lightweight JavaScript SDK for connecting your Chrome Extension / SaaS app to PayVia, for accepting PayPal payments and managing subscriptions, license validation, tier-based feature gating, trial management and monthly / yearly / lifetime plans",
+  "main": "payvia.js",
+  "type": "module",
+  "exports": {
+    ".": "./payvia.js"
+  },
+  "files": [
+    "payvia.js",
+    "README.md"
+  ],
+  "keywords": [
+    "paypal",
+    "payments",
+    "chrome-extension",
+    "saas",
+    "subscriptions",
+    "monetization"
+  ],
+  "author": "PayVia",
+  "license": "MIT",
+  "homepage": "https://payvia.site",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Asia-Digital/PayVia-SDK.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Asia-Digital/PayVia-SDK/issues"
+  }
+}

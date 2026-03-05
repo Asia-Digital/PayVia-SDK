@@ -1,0 +1,21 @@
+{
+    "manifest_version": 3,
+    "name": "PayVia Sample Extension",
+    "version": "1.0.0",
+    "description": "Sample extension demonstrating PayVia integration",
+    "permissions": [
+        "storage",
+        "identity",
+        "identity.email"
+    ],
+    "host_permissions": [
+        "https://api.payvia.site/*"
+    ],
+    "action": {
+        "default_popup": "popup.html"
+    },
+    "background": {
+        "service_worker": "background.js",
+        "type": "module"
+    }
+}

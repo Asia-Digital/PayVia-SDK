@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PayVia Sample</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 320px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%);
+      color: #1f2937;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 12px;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      margin-bottom: 2px;
+      color: #059669;
+    }
+
+    .header p {
+      color: #6b7280;
+      font-size: 11px;
+    }
+
+    #loading {
+      text-align: center;
+      padding: 40px 0;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #e5e7eb;
+      border-top-color: #059669;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 12px;
+    }
+
+    @keyframes spin {
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    #content {
+      display: none;
+    }
+
+    .status-card {
+      background: white;
+      border: 1px solid #d1fae5;
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .status-card h2 {
+      font-size: 16px;
+      margin-bottom: 2px;
+      color: #1f2937;
+    }
+
+    .status-card p {
+      font-size: 12px;
+      color: #6b7280;
+    }
+
+    .features {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .features h3 {
+      font-size: 12px;
+      margin-bottom: 8px;
+      color: #6b7280;
+    }
+
+    .feature {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 0;
+      border-bottom: 1px solid #f3f4f6;
+    }
+
+    .feature:last-child {
+      border-bottom: none;
+    }
+
+    .feature-left {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .feature .status-icon {
+      width: 22px;
+      height: 22px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+    }
+
+    .status-icon.unlocked {
+      background: #22c55e;
+      color: white;
+    }
+
+    .status-icon.locked {
+      background: #f3f4f6;
+      color: #9ca3af;
+    }
+
+    .feature-info {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .feature-name {
+      font-size: 13px;
+      color: #374151;
+    }
+
+    .mode-hint {
+      font-size: 10px;
+      color: #9ca3af;
+    }
+
+    .unlock-btn {
+      padding: 5px 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      background: white;
+      color: #374151;
+      font-size: 11px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.2s;
+    }
+
+    .unlock-btn:hover {
+      background: #f0fdf4;
+      border-color: #a7f3d0;
+      color: #059669;
+    }
+
+    .unlock-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .unlocked-badge {
+      font-size: 11px;
+      color: #22c55e;
+      font-weight: 500;
+    }
+
+    .unlocked-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .cancel-btn {
+      padding: 3px 8px;
+      border: 1px solid #fca5a5;
+      border-radius: 4px;
+      background: #fef2f2;
+      color: #dc2626;
+      font-size: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .cancel-btn:hover {
+      background: #fee2e2;
+      border-color: #f87171;
+    }
+
+    /* Email section */
+    #email-section {
+      background: white;
+      border: 1px solid #e5e7eb;
+      border-radius: 12px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    #email-section label {
+      display: block;
+      font-size: 13px;
+      color: #6b7280;
+      margin-bottom: 8px;
+    }
+
+    #email-input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: white;
+      color: #1f2937;
+      font-size: 14px;
+      outline: none;
+      box-sizing: border-box;
+    }
+
+    #email-input:focus {
+      border-color: #059669;
+    }
+
+    #email-error {
+      color: #ef4444;
+      font-size: 12px;
+      margin-top: 6px;
+    }
+
+    /* Reset button */
+    .reset-section {
+      text-align: center;
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid #e5e7eb;
+    }
+
+    #reset-btn {
+      background: none;
+      border: none;
+      color: #9ca3af;
+      font-size: 11px;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    #reset-btn:hover {
+      color: #6b7280;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .user-id {
+      text-align: center;
+      font-size: 10px;
+      color: #9ca3af;
+      margin-top: 12px;
+    }
+
+    /* Trial banner */
+    .trial-banner {
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      border: 1px solid #f59e0b;
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      color: #92400e;
+    }
+
+    .trial-icon {
+      font-size: 16px;
+    }
+
+    .trial-text strong {
+      color: #78350f;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="header">
+    <h1>🧪 PayVia Demo</h1>
+    <p>Each checkout mode unlocks a different feature</p>
+  </div>
+
+  <div id="loading">
+    <div class="spinner"></div>
+    <p>Loading...</p>
+  </div>
+
+  <div id="content">
+    <!-- Trial banner (shown when user is on trial) -->
+    <div id="trial-banner" class="trial-banner hidden"></div>
+
+    <!-- Status card -->
+    <div id="status-card" class="status-card">
+      <h2 id="status-title">Free Version</h2>
+      <p id="status-subtitle">Click Unlock to try each checkout mode</p>
+    </div>
+
+    <!-- Features with unlock buttons -->
+    <div class="features">
+      <h3>Features</h3>
+      
+      <!-- Basic - Always unlocked -->
+      <div class="feature">
+        <div class="feature-left">
+          <div class="status-icon unlocked">✓</div>
+          <span class="feature-name">Basic features</span>
+        </div>
+        <span class="unlocked-badge">Included</span>
+      </div>
+      
+      <!-- Advanced - Unlock with Pricing Page -->
+      <div class="feature" id="feature-advanced-row">
+        <div class="feature-left">
+          <div class="status-icon locked" id="icon-advanced">🔒</div>
+          <div class="feature-info">
+            <span class="feature-name">Advanced features</span>
+            <span class="mode-hint">📋 Pricing Page · $2.99</span>
+          </div>
+        </div>
+        <button class="unlock-btn" id="btn-advanced">Unlock</button>
+      </div>
+      
+      <!-- Unlimited - Unlock with Hosted Checkout -->
+      <div class="feature" id="feature-unlimited-row">
+        <div class="feature-left">
+          <div class="status-icon locked" id="icon-unlimited">🔒</div>
+          <div class="feature-info">
+            <span class="feature-name">Unlimited usage</span>
+            <span class="mode-hint">🎯 Specific Plan · $4.99</span>
+          </div>
+        </div>
+        <button class="unlock-btn" id="btn-unlimited">Unlock</button>
+      </div>
+      
+      <!-- Priority Support - Unlock with Direct PayPal -->
+      <div class="feature" id="feature-support-row">
+        <div class="feature-left">
+          <div class="status-icon locked" id="icon-support">🔒</div>
+          <div class="feature-info">
+            <span class="feature-name">Priority support</span>
+            <span class="mode-hint">💳 PayPal Direct · $1.99</span>
+          </div>
+        </div>
+        <button class="unlock-btn" id="btn-support">Unlock</button>
+      </div>
+    </div>
+
+    <!-- Email input for users without Google identity -->
+    <div id="email-section" class="hidden">
+      <label>Enter your email to continue:</label>
+      <input type="email" id="email-input" placeholder="your@email.com" />
+      <p id="email-error" class="hidden"></p>
+    </div>
+
+    <!-- Reset demo button -->
+    <div class="reset-section">
+      <button id="reset-btn">🔄 Reset Demo</button>
+    </div>
+  </div>
+
+  <div class="user-id" id="user-id"></div>
+
+  <script src="popup.js" type="module"></script>
+</body>
+
+</html>
