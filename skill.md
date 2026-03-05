@@ -193,7 +193,13 @@ If using Google Identity for automatic user detection, also add:
 }
 ```
 
-Copy `payvia.js` to your extension's `lib/` folder.
+Install the SDK:
+
+```bash
+npm install @payvia-sdk/sdk
+```
+
+Or copy `payvia.js` directly to your extension's `lib/` folder.
 
 ### Step 2: Initialize PayVia
 

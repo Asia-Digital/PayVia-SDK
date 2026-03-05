@@ -13,18 +13,8 @@ MCP (Model Context Protocol) server that enables AI coding agents like Claude Co
 
 ## Installation
 
-### Option 1: From npm (when published)
-
 ```bash
-npm install -g @payvia/mcp-server
-```
-
-### Option 2: From source
-
-```bash
-cd mcp-server
-npm install
-npm run build
+npm install -g @payvia-sdk/mcp-server
 ```
 
 ## Configuration
@@ -37,11 +27,8 @@ Add to your Claude Code MCP settings (`~/.claude/settings.json` or project `.cla
 {
   "mcpServers": {
     "payvia": {
-      "command": "node",
-      "args": ["/path/to/payvia/mcp-server/dist/index.js"],
-      "env": {
-        "PAYVIA_API_URL": "https://api.payvia.site"
-      }
+      "command": "npx",
+      "args": ["-y", "@payvia-sdk/mcp-server"]
     }
   }
 }
@@ -55,8 +42,8 @@ Configure in your MCP extension settings:
 {
   "mcp.servers": {
     "payvia": {
-      "command": "node",
-      "args": ["/path/to/payvia/mcp-server/dist/index.js"]
+      "command": "npx",
+      "args": ["-y", "@payvia-sdk/mcp-server"]
     }
   }
 }

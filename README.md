@@ -23,7 +23,7 @@ Copy `payvia.js` into your extension folder.
 ### Option 2: npm
 
 ```bash
-npm install payvia-sdk
+npm install @payvia-sdk/sdk
 ```
 
 ## Basic Usage
