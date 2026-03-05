@@ -98,6 +98,12 @@ async function apiCall(
     headers["X-API-Key"] = useApiKey;
   } else if (state.accessToken) {
     headers["Authorization"] = `Bearer ${state.accessToken}`;
+  } else {
+    // Auto-authenticate: start OAuth flow instead of failing
+    console.error("No authentication found. Starting automatic OAuth flow...");
+    const tokens = await startOAuthFlow(state.apiUrl);
+    state.accessToken = tokens.accessToken;
+    headers["Authorization"] = `Bearer ${state.accessToken}`;
   }
 
   const response = await fetch(`${state.apiUrl}${endpoint}`, {
@@ -107,6 +113,27 @@ async function apiCall(
   });
 
   if (!response.ok) {
+    if (response.status === 401) {
+      // Token rejected by server — clear and retry with fresh auth
+      state.accessToken = null;
+      clearTokens();
+      console.error("Token rejected. Starting re-authentication...");
+      const tokens = await startOAuthFlow(state.apiUrl);
+      state.accessToken = tokens.accessToken;
+      headers["Authorization"] = `Bearer ${state.accessToken}`;
+
+      const retry = await fetch(`${state.apiUrl}${endpoint}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      if (!retry.ok) {
+        const errorText = await retry.text();
+        throw new Error(`API Error (${retry.status}): ${errorText}`);
+      }
+      const retryText = await retry.text();
+      return retryText ? JSON.parse(retryText) : null;
+    }
     const errorText = await response.text();
     throw new Error(`API Error (${response.status}): ${errorText}`);
   }

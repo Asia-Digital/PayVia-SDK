@@ -1,6 +1,6 @@
 {
   "name": "@payvia-sdk/mcp-server",
-  "version": "1.0.0",
+  "version": "1.1.1",
   "description": "PayVia MCP Server - Enable AI agents to manage PayVia payment infrastructure",
   "main": "dist/index.js",
   "type": "module",

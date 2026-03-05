@@ -72,6 +72,9 @@ export async function startOAuthFlow(apiUrl: string): Promise<StoredTokens> {
       const returnedState = reqUrl.searchParams.get("state");
       const error = reqUrl.searchParams.get("error");
 
+      // Capture port before closing the server
+      const port = (server.address() as { port: number }).port;
+
       // Show success page immediately
       res.writeHead(200, { "Content-Type": "text/html" });
       res.end(SUCCESS_HTML);
@@ -96,7 +99,7 @@ export async function startOAuthFlow(apiUrl: string): Promise<StoredTokens> {
         const body = new URLSearchParams({
           grant_type: "authorization_code",
           code,
-          redirect_uri: `http://localhost:${(server.address() as { port: number }).port}/callback`,
+          redirect_uri: `http://localhost:${port}/callback`,
           client_id: CLIENT_ID,
           code_verifier: codeVerifier,
         });
