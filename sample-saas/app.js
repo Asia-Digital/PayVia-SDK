@@ -141,6 +141,32 @@ async function init() {
         updateFeaturesUI(unlockedFeatures);
         updateStatusCard(unlockedFeatures, statusTitleEl, statusSubtitleEl, user);
 
+        // Show cancel grace period banner
+        const trialBannerEl = document.getElementById('trial-banner');
+        if (user.cancelGraceActive && trialBannerEl) {
+            trialBannerEl.classList.remove('hidden');
+            const endDate = user.currentPeriodEnd.toLocaleDateString();
+            trialBannerEl.innerHTML = `
+                <span class="trial-icon">&#x26A0;</span>
+                <span class="trial-text">
+                    Subscription canceled. Access continues until <strong>${endDate}</strong>
+                </span>
+            `;
+        }
+
+        // Show trial banner if user is on trial
+        if (user.isTrial && trialBannerEl) {
+            trialBannerEl.classList.remove('hidden');
+            const daysText = user.trialDaysRemaining === 1 ? 'day' : 'days';
+            const tierName = user.tier?.name || 'Premium';
+            trialBannerEl.innerHTML = `
+                <span class="trial-icon">⏱️</span>
+                <span class="trial-text">
+                    ${tierName} Trial: <strong>${user.trialDaysRemaining} ${daysText}</strong> remaining
+                </span>
+            `;
+        }
+
         // Check if we need to show email input
         const needsEmail = await payvia.needsEmailForPayment();
         if (needsEmail) {
@@ -204,9 +230,49 @@ function updateFeaturesUI(unlockedFeatures) {
             iconEl.classList.add('unlocked');
             iconEl.textContent = '✓';
 
-            // Replace button with badge
-            btnEl.outerHTML = '<span class="unlocked-badge">✓ Unlocked</span>';
+            // Get the plan ID for this feature
+            const planId = PLAN_IDS[feature];
+
+            // Replace button with unlocked badge + cancel button
+            btnEl.outerHTML = `
+                <div class="unlocked-controls">
+                    <span class="unlocked-badge">✓ Unlocked</span>
+                    <button class="cancel-btn" data-plan-id="${planId}" data-feature="${feature}">
+                        Cancel
+                    </button>
+                </div>
+            `;
         }
+    });
+
+    // Setup cancel button handlers
+    setupCancelButtons();
+}
+
+function setupCancelButtons() {
+    document.querySelectorAll('.cancel-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            const planId = btn.dataset.planId;
+            const feature = btn.dataset.feature;
+
+            if (!confirm(`Cancel ${feature} subscription? This will stop recurring payments.`)) {
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Canceling...';
+
+            try {
+                await payvia.cancelSubscription({ planId });
+                // Refresh the page to show updated status
+                location.reload();
+            } catch (error) {
+                console.error('Cancel failed:', error);
+                alert('Failed to cancel: ' + error.message);
+                btn.disabled = false;
+                btn.textContent = 'Cancel';
+            }
+        });
     });
 }
 

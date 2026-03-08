@@ -26,8 +26,7 @@ function PayVia(apiKey) {
         throw new Error('PayVia: API key is required');
     }
 
-    // const PAYVIA_API_URL = 'http://localhost:5000'; // Development
-    const PAYVIA_API_URL = 'https://api.payvia.site'; // Production
+    const PAYVIA_API_URL = 'https://api.payvia.site';
 
     const LICENSE_CACHE_KEY = 'payvia_license_cache';
     const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -36,14 +35,28 @@ function PayVia(apiKey) {
     const instance = {};
     let cachedUser = null;
     let userPromise = null;
-    let cachedIdentity = null; // Stores { id, email, source }
 
     // ============ License Cache Storage ============
 
     /**
-     * Get storage interface (localStorage for browser)
+     * Get storage interface (chrome.storage.local or localStorage)
      */
     function getStorage() {
+        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+            return {
+                async get(key) {
+                    return new Promise(resolve => {
+                        chrome.storage.local.get([key], result => resolve(result[key]));
+                    });
+                },
+                async set(key, value) {
+                    return new Promise(resolve => {
+                        chrome.storage.local.set({ [key]: value }, resolve);
+                    });
+                }
+            };
+        }
+        // Fallback to localStorage
         return {
             async get(key) {
                 const value = localStorage.getItem(key);
@@ -98,6 +111,8 @@ function PayVia(apiKey) {
         return Date.now() < cache.checkedAt + ttl + GRACE_PERIOD_MS;
     }
 
+    let cachedIdentity = null; // Stores { id, email, source }
+
     /**
      * Try to get the user's Google account email via chrome.identity
      * @returns {Promise<{email: string, source: 'google'} | null>}
@@ -125,6 +140,7 @@ function PayVia(apiKey) {
 
     /**
      * Get or generate a random fallback ID
+     * Uses chrome.storage.sync to persist across devices
      * @returns {Promise<string>}
      */
     async function getRandomId() {
@@ -142,18 +158,12 @@ function PayVia(apiKey) {
                 });
             } else {
                 // Fallback for non-extension environments (testing)
-                // Check if email is stored for web login
-                const storedEmail = localStorage.getItem('payvia_email');
-                if (storedEmail) {
-                    resolve(storedEmail);
-                } else {
-                    let userId = localStorage.getItem('payvia_user_id');
-                    if (!userId) {
-                        userId = 'pv_' + generateUUID();
-                        localStorage.setItem('payvia_user_id', userId);
-                    }
-                    resolve(userId);
+                let userId = localStorage.getItem('payvia_user_id');
+                if (!userId) {
+                    userId = 'pv_' + generateUUID();
+                    localStorage.setItem('payvia_user_id', userId);
                 }
+                resolve(userId);
             }
         });
     }
@@ -171,7 +181,7 @@ function PayVia(apiKey) {
         const googleInfo = await getGoogleIdentity();
         if (googleInfo && googleInfo.email) {
             cachedIdentity = {
-                id: googleInfo.email, // Use email as the ID
+                id: googleInfo.email,
                 email: googleInfo.email,
                 source: 'google'
             };
@@ -179,24 +189,14 @@ function PayVia(apiKey) {
             return cachedIdentity;
         }
 
-        // Fall back to random ID or stored email
+        // Fall back to random ID
         const randomId = await getRandomId();
-        const storedEmail = localStorage.getItem('payvia_email');
-        if (storedEmail && randomId === storedEmail) {
-            cachedIdentity = {
-                id: storedEmail,
-                email: storedEmail,
-                source: 'random' // Still random, but with email
-            };
-            console.log('PayVia: Using stored email identity:', cachedIdentity.email);
-        } else {
-            cachedIdentity = {
-                id: randomId,
-                email: null, // No email available
-                source: 'random'
-            };
-            console.log('PayVia: Using random identity:', cachedIdentity.id);
-        }
+        cachedIdentity = {
+            id: randomId,
+            email: null,
+            source: 'random'
+        };
+        console.log('PayVia: Using random identity:', cachedIdentity.id);
         return cachedIdentity;
     }
 
@@ -230,26 +230,6 @@ function PayVia(apiKey) {
         }
 
         return response.json();
-    }
-
-    /**
-     * Build user object from cache data
-     */
-    function buildUserFromCache(identity, cache, fromCache) {
-        return {
-            id: identity.id,
-            email: identity.email,
-            identitySource: identity.source,
-            paid: cache.status === 'ACTIVE' || cache.status === 'TRIAL',
-            status: cache.status,
-            tier: cache.tier || null,
-            features: cache.tier?.features || [],
-            planIds: cache.planIds || [],
-            isTrial: cache.isTrial || false,
-            trialEndsAt: cache.trialExpiresAt ? new Date(cache.trialExpiresAt) : null,
-            trialDaysRemaining: cache.daysRemaining || null,
-            fromCache: fromCache,
-        };
     }
 
     /**
@@ -296,9 +276,12 @@ function PayVia(apiKey) {
                     isTrial: response.isTrial || false,
                     trialExpiresAt: response.trialExpiresAt || null,
                     daysRemaining: response.daysRemaining || null,
+                    canceledAt: response.canceledAt || null,
+                    currentPeriodEnd: response.currentPeriodEnd || null,
                     checkedAt: response.checkedAt || Date.now(),
                     ttl: response.ttl || DEFAULT_TTL_MS,
                     signature: response.signature || null,
+                    version: response.version || null,
                 };
                 await setCachedLicense(cacheData);
 
@@ -336,6 +319,38 @@ function PayVia(apiKey) {
 
         return userPromise;
     };
+
+    /**
+     * Build user object from cache data
+     */
+    function buildUserFromCache(identity, cache, fromCache) {
+        const canceledAt = cache.canceledAt ? new Date(cache.canceledAt) : null;
+        const currentPeriodEnd = cache.currentPeriodEnd ? new Date(cache.currentPeriodEnd) : null;
+        const isCanceled = !!canceledAt;
+        const cancelGraceActive = isCanceled && currentPeriodEnd && currentPeriodEnd > new Date();
+
+        return {
+            id: identity.id,
+            email: identity.email,
+            identitySource: identity.source,
+            paid: cache.status === 'ACTIVE' || cache.status === 'TRIAL',
+            status: cache.status,
+            tier: cache.tier || null,
+            features: cache.tier?.features || [],
+            planIds: cache.planIds || [],
+            isTrial: cache.isTrial || false,
+            trialExpiresAt: cache.trialExpiresAt ? new Date(cache.trialExpiresAt) : null,
+            daysRemaining: cache.daysRemaining || null,
+            canceledAt: canceledAt,
+            currentPeriodEnd: currentPeriodEnd,
+            isCanceled: isCanceled,
+            cancelGraceActive: cancelGraceActive,
+            fromCache: fromCache,
+            checkedAt: cache.checkedAt || null,
+            ttl: cache.ttl || null,
+            signature: cache.signature || null,
+        };
+    }
 
     /**
      * Force refresh user status from server
@@ -389,19 +404,98 @@ function PayVia(apiKey) {
     };
 
     /**
-     * Reset the user's license (delete all subscriptions).
-     * This is for demo/testing purposes only.
-     * @returns {Promise<{message: string}>}
+     * Start a trial for the current user
+     * Call this when user first installs/uses the extension
+     * Idempotent: if user already has a trial/active subscription, returns existing info
+     * @returns {Promise<{subscriptionId: string, status: string, planId: string, planName: string, trialExpiresAt: Date, daysRemaining: number} | null>}
      */
-    instance.resetLicense = async function () {
-        const identity = await getUserIdentity();
-        const response = await apiRequest('/api/v1/license/reset', {
-            method: 'POST',
-            body: JSON.stringify({ customerId: identity.id }),
+    instance.startTrial = async function () {
+        try {
+            const identity = await getUserIdentity();
+            const response = await apiRequest('/api/v1/trial/start', {
+                method: 'POST',
+                body: JSON.stringify({
+                    customerId: identity.id,
+                    email: identity.email,
+                }),
+            });
+
+            // Clear cached user so next getUser() fetches fresh data
+            cachedUser = null;
+
+            return {
+                subscriptionId: response.subscriptionId,
+                status: response.status,
+                planId: response.planId,
+                planName: response.planName,
+                trialExpiresAt: new Date(response.trialExpiresAt),
+                daysRemaining: response.daysRemaining,
+            };
+        } catch (error) {
+            console.log('PayVia: Could not start trial:', error.message);
+            return null;
+        }
+    };
+
+    /**
+     * Get trial status for the current user
+     * @returns {Promise<{status: string, trialExpiresAt: Date | null, daysRemaining: number | null, canConvert: boolean, planIds: string[]}>}
+     */
+    instance.getTrialStatus = async function () {
+        try {
+            const identity = await getUserIdentity();
+            const response = await apiRequest('/api/v1/trial/status', {
+                method: 'POST',
+                body: JSON.stringify({ customerId: identity.id }),
+            });
+
+            return {
+                status: response.status,
+                trialExpiresAt: response.trialExpiresAt ? new Date(response.trialExpiresAt) : null,
+                daysRemaining: response.daysRemaining || null,
+                canConvert: response.canConvert,
+                planIds: response.planIds || [],
+            };
+        } catch (error) {
+            console.error('PayVia: Failed to get trial status', error);
+            return {
+                status: 'UNKNOWN',
+                trialExpiresAt: null,
+                daysRemaining: null,
+                canConvert: true,
+                planIds: [],
+            };
+        }
+    };
+
+    /**
+     * Check if this is the first time the extension is being used
+     * @returns {Promise<boolean>}
+     */
+    instance.isFirstRun = async function () {
+        return new Promise((resolve) => {
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                chrome.storage.local.get(['payvia_first_run_done'], (result) => {
+                    resolve(!result.payvia_first_run_done);
+                });
+            } else {
+                resolve(!localStorage.getItem('payvia_first_run_done'));
+            }
         });
-        // Clear cached user so next getUser() fetches fresh data
-        cachedUser = null;
-        return response;
+    };
+
+    /**
+     * Mark first run as complete
+     */
+    instance.markFirstRunDone = async function () {
+        return new Promise((resolve) => {
+            if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+                chrome.storage.local.set({ payvia_first_run_done: true }, resolve);
+            } else {
+                localStorage.setItem('payvia_first_run_done', 'true');
+                resolve();
+            }
+        });
     };
 
     /**
@@ -424,10 +518,10 @@ function PayVia(apiKey) {
     /**
      * Open payment page for the user
      * @param {Object} options - Payment options
-     * @param {string} options.planId - Plan ID to purchase (not required for 'pricing' mode)
-     * @param {string} options.email - Customer email (required if not using Google identity)
+     * @param {string} options.planId - Plan ID to purchase (required for direct/hosted modes)
+     * @param {string} options.email - Customer email
      * @param {'pricing'|'hosted'|'direct'} options.mode - Checkout mode:
-     *   - 'pricing': Shows all plans for user to choose (recommended)
+     *   - 'pricing': Shows all plans for user to choose (default, most secure)
      *   - 'hosted': Goes directly to checkout for specific plan
      *   - 'direct': Bypasses PayVia, goes straight to PayPal
      * @param {string} options.successUrl - URL to redirect after successful payment (direct mode only)
@@ -435,22 +529,17 @@ function PayVia(apiKey) {
      */
     instance.openPaymentPage = async function (options = {}) {
         const identity = await getUserIdentity();
+        const customerEmail = options.email || identity.email;
+        const mode = options.mode || 'pricing';
 
-        // Determine the email to use
-        let customerEmail = options.email || identity.email;
-
-        if (!customerEmail) {
-            throw new Error('Email is required for payment. Please provide an email address.');
-        }
-
-        const mode = options.mode || 'pricing'; // Default to pricing mode
-
-        // const PAYVIA_BASE_URL = 'http://localhost:3000'; // Development
-        const PAYVIA_BASE_URL = 'https://payvia-dashboard.vercel.app'; // Production
+        const PAYVIA_BASE_URL = 'https://payvia.site';
 
         if (mode === 'pricing') {
-            // Pricing mode: Show all plans for user to choose
-            // First, get a secure checkout token from the API (API key stays server-side)
+            // Pricing mode: Get secure token, show all plans
+            if (!customerEmail) {
+                throw new Error('Email is required for payment. Please provide an email address.');
+            }
+
             const tokenResponse = await apiRequest('/api/v1/checkout/token', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -460,11 +549,7 @@ function PayVia(apiKey) {
                 }),
             });
 
-            const params = new URLSearchParams({
-                token: tokenResponse.token,
-            });
-
-            const pricingUrl = `${PAYVIA_BASE_URL}/pricing?${params.toString()}`;
+            const pricingUrl = `${PAYVIA_BASE_URL}/pricing?token=${encodeURIComponent(tokenResponse.token)}`;
 
             if (typeof chrome !== 'undefined' && chrome.tabs) {
                 chrome.tabs.create({ url: pricingUrl });
@@ -474,12 +559,14 @@ function PayVia(apiKey) {
 
             return { mode: 'pricing', pricingUrl };
         } else if (mode === 'hosted') {
-            // Hosted mode: Redirect to PayVia checkout page for specific plan
+            // Hosted mode: Get secure token, go to specific plan checkout
             if (!options.planId) {
                 throw new Error('planId is required for hosted mode');
             }
+            if (!customerEmail) {
+                throw new Error('Email is required for payment. Please provide an email address.');
+            }
 
-            // Get a secure checkout token from the API (API key stays server-side)
             const tokenResponse = await apiRequest('/api/v1/checkout/token', {
                 method: 'POST',
                 body: JSON.stringify({
@@ -490,11 +577,7 @@ function PayVia(apiKey) {
                 }),
             });
 
-            const params = new URLSearchParams({
-                token: tokenResponse.token,
-            });
-
-            const checkoutUrl = `${PAYVIA_BASE_URL}/checkout?${params.toString()}`;
+            const checkoutUrl = `${PAYVIA_BASE_URL}/checkout?token=${encodeURIComponent(tokenResponse.token)}`;
 
             if (typeof chrome !== 'undefined' && chrome.tabs) {
                 chrome.tabs.create({ url: checkoutUrl });
@@ -504,7 +587,7 @@ function PayVia(apiKey) {
 
             return { mode: 'hosted', checkoutUrl };
         } else {
-            // Direct mode: Call API and redirect straight to PayPal
+            // Direct mode: Call API and redirect straight to PayPal (original behavior)
             if (!options.planId) {
                 throw new Error('planId is required for direct mode');
             }
@@ -515,9 +598,9 @@ function PayVia(apiKey) {
                     body: JSON.stringify({
                         planId: options.planId,
                         customerId: identity.id,
-                        customerEmail: customerEmail,
-                        successUrl: options.successUrl || `${PAYVIA_API_URL}/api/v1/checkout-session/complete`,
-                        cancelUrl: options.cancelUrl || `${PAYVIA_API_URL}/api/v1/checkout-session/cancel`,
+                        customerEmail: customerEmail || '',
+                        successUrl: options.successUrl || 'https://payvia.site/success',
+                        cancelUrl: options.cancelUrl || 'https://payvia.site/cancel',
                     }),
                 });
 
@@ -530,7 +613,7 @@ function PayVia(apiKey) {
                     }
                 }
 
-                return { mode: 'direct', ...response };
+                return response;
             } catch (error) {
                 console.error('PayVia: Failed to open payment page', error);
                 throw error;
@@ -576,6 +659,46 @@ function PayVia(apiKey) {
             console.error('PayVia: Failed to get plans', error);
             return [];
         }
+    };
+
+    /**
+     * Reset the user's license (delete all subscriptions).
+     * This is for demo/testing purposes only.
+     * @returns {Promise<{message: string}>}
+     */
+    instance.resetLicense = async function () {
+        const identity = await getUserIdentity();
+        const response = await apiRequest('/api/v1/license/reset', {
+            method: 'POST',
+            body: JSON.stringify({ customerId: identity.id }),
+        });
+        cachedUser = null;
+        return response;
+    };
+
+    /**
+     * Cancel a subscription for the current user
+     * @param {Object} options - Cancel options
+     * @param {string} options.planId - Specific plan to cancel (optional)
+     * @param {string} options.reason - Cancellation reason (optional)
+     * @returns {Promise<{success: boolean, message: string, canceledPlanId: string}>}
+     */
+    instance.cancelSubscription = async function (options = {}) {
+        const identity = await getUserIdentity();
+
+        const response = await apiRequest('/api/v1/license/cancel', {
+            method: 'POST',
+            body: JSON.stringify({
+                customerId: identity.id,
+                planId: options.planId || null,
+                reason: options.reason || 'User requested cancellation',
+            }),
+        });
+
+        // Clear cached user so next getUser() fetches fresh data
+        cachedUser = null;
+
+        return response;
     };
 
     return instance;

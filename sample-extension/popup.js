@@ -138,6 +138,18 @@ async function init() {
             `;
         }
 
+        // Show cancel grace period banner
+        if (user.cancelGraceActive && trialBannerEl) {
+            trialBannerEl.classList.remove('hidden');
+            const endDate = user.currentPeriodEnd.toLocaleDateString();
+            trialBannerEl.innerHTML = `
+                <span class="trial-icon">&#x26A0;</span>
+                <span class="trial-text">
+                    Subscription canceled. Access continues until <strong>${endDate}</strong>
+                </span>
+            `;
+        }
+
         // Check if we need to show email input
         const needsEmail = await payvia.needsEmailForPayment();
         if (needsEmail) {

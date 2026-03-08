@@ -276,6 +276,8 @@ function PayVia(apiKey) {
                     isTrial: response.isTrial || false,
                     trialExpiresAt: response.trialExpiresAt || null,
                     daysRemaining: response.daysRemaining || null,
+                    canceledAt: response.canceledAt || null,
+                    currentPeriodEnd: response.currentPeriodEnd || null,
                     checkedAt: response.checkedAt || Date.now(),
                     ttl: response.ttl || DEFAULT_TTL_MS,
                     signature: response.signature || null,
@@ -322,6 +324,11 @@ function PayVia(apiKey) {
      * Build user object from cache data
      */
     function buildUserFromCache(identity, cache, fromCache) {
+        const canceledAt = cache.canceledAt ? new Date(cache.canceledAt) : null;
+        const currentPeriodEnd = cache.currentPeriodEnd ? new Date(cache.currentPeriodEnd) : null;
+        const isCanceled = !!canceledAt;
+        const cancelGraceActive = isCanceled && currentPeriodEnd && currentPeriodEnd > new Date();
+
         return {
             id: identity.id,
             email: identity.email,
@@ -334,6 +341,10 @@ function PayVia(apiKey) {
             isTrial: cache.isTrial || false,
             trialExpiresAt: cache.trialExpiresAt ? new Date(cache.trialExpiresAt) : null,
             daysRemaining: cache.daysRemaining || null,
+            canceledAt: canceledAt,
+            currentPeriodEnd: currentPeriodEnd,
+            isCanceled: isCanceled,
+            cancelGraceActive: cancelGraceActive,
             fromCache: fromCache,
             checkedAt: cache.checkedAt || null,
             ttl: cache.ttl || null,
