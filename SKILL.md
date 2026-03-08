@@ -3,6 +3,29 @@ name: payvia-integration
 description: Integrate PayVia payment infrastructure into Chrome Extensions or SaaS apps. Use when a developer asks about PayVia, accepting payments, PayPal subscriptions, license validation, or feature gating.
 user-invocable: true
 argument-hint: "[new|existing] - whether user has an existing PayVia project"
+metadata:
+  display_name:
+    en: PayVia Integration
+    he: אינטגרציית PayVia
+  display_description:
+    en: Integrate PayVia payment infrastructure into Chrome Extensions or SaaS apps — PayPal subscriptions, license validation, tier-based feature gating, and trial support.
+    he: שילוב תשתית תשלומים PayVia בתוספי כרום או אפליקציות SaaS — מנויי PayPal, אימות רישיון, שכבות גישה מבוססות פיצ'רים ותמיכה בתקופת ניסיון.
+  tags:
+    en:
+      - payments
+      - paypal
+      - subscriptions
+      - chrome-extension
+      - saas
+      - licensing
+      - feature-gating
+      - monetization
+    he:
+      - תשלומים
+      - מנויים
+      - תוספי כרום
+      - רישוי
+      - מונטיזציה
 ---
 
 # PayVia Integration Skill
