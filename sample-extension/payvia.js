@@ -536,15 +536,12 @@ function PayVia(apiKey) {
 
         if (mode === 'pricing') {
             // Pricing mode: Get secure token, show all plans
-            if (!customerEmail) {
-                throw new Error('Email is required for payment. Please provide an email address.');
-            }
-
+            // Email is optional — PayPal will collect it during checkout for anon users
             const tokenResponse = await apiRequest('/api/v1/checkout/token', {
                 method: 'POST',
                 body: JSON.stringify({
                     customerId: identity.id,
-                    customerEmail: customerEmail,
+                    customerEmail: customerEmail || undefined,
                     mode: 'pricing',
                 }),
             });
@@ -563,15 +560,12 @@ function PayVia(apiKey) {
             if (!options.planId) {
                 throw new Error('planId is required for hosted mode');
             }
-            if (!customerEmail) {
-                throw new Error('Email is required for payment. Please provide an email address.');
-            }
-
+            // Email is optional — PayPal will collect it during checkout for anon users
             const tokenResponse = await apiRequest('/api/v1/checkout/token', {
                 method: 'POST',
                 body: JSON.stringify({
                     customerId: identity.id,
-                    customerEmail: customerEmail,
+                    customerEmail: customerEmail || undefined,
                     planId: options.planId,
                     mode: 'checkout',
                 }),
@@ -598,7 +592,7 @@ function PayVia(apiKey) {
                     body: JSON.stringify({
                         planId: options.planId,
                         customerId: identity.id,
-                        customerEmail: customerEmail || '',
+                        customerEmail: customerEmail || undefined,
                         successUrl: options.successUrl || 'https://payvia.site/success',
                         cancelUrl: options.cancelUrl || 'https://payvia.site/cancel',
                     }),
