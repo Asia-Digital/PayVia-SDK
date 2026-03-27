@@ -581,7 +581,7 @@ function PayVia(apiKey) {
 
             return { mode: 'hosted', checkoutUrl };
         } else {
-            // Direct mode: Call API and redirect straight to PayPal (original behavior)
+            // Direct mode: Call API and redirect to payment provider
             if (!options.planId) {
                 throw new Error('planId is required for direct mode');
             }
@@ -598,7 +598,9 @@ function PayVia(apiKey) {
                     }),
                 });
 
-                // Open PayPal checkout in new tab
+                // Open checkout URL in new tab
+                // For Tranzila iframe mode, the URL is the iframe source — opening it
+                // directly in a new tab works fine (Tranzila renders as a full page too)
                 if (response.checkoutUrl) {
                     if (typeof chrome !== 'undefined' && chrome.tabs) {
                         chrome.tabs.create({ url: response.checkoutUrl });
@@ -607,6 +609,7 @@ function PayVia(apiKey) {
                     }
                 }
 
+                // response includes: checkoutUrl, sessionId, provider ("PayPal"|"Tranzila"), mode (null|"iframe"|"redirect")
                 return response;
             } catch (error) {
                 console.error('PayVia: Failed to open payment page', error);

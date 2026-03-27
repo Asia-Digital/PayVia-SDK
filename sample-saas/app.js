@@ -18,7 +18,7 @@
  * DEMO: Each checkout mode unlocks a different feature:
  *   - Pricing Page (mode: 'pricing')  → Advanced features
  *   - Specific Plan (mode: 'hosted')  → Unlimited usage
- *   - PayPal Direct (mode: 'direct')  → Priority support
+ *   - Direct checkout (mode: 'direct')  → Priority support (works with PayPal and Tranzila plans)
  */
 
 import PayVia from './payvia.js';
@@ -323,7 +323,7 @@ function setupUnlockButtons(needsEmail, emailInputEl, emailErrorEl, unlockedFeat
         });
     }
 
-    // Support → Direct PayPal mode
+    // Support → Direct mode (PayPal or Tranzila, depending on plan's payment provider)
     const btnSupport = document.getElementById('btn-support');
     if (btnSupport && !unlockedFeatures.includes('support')) {
         btnSupport.addEventListener('click', () => {

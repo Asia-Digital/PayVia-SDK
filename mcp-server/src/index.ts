@@ -359,6 +359,55 @@ const tools: Tool[] = [
     },
   },
 
+  {
+    name: "payvia_configure_tranzila",
+    description:
+      "Configure Tranzila (Israeli payment gateway) credentials for a project. Supports separate test and live terminal names.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        projectId: {
+          type: "string",
+          description: "The project UUID",
+        },
+        testTerminalName: {
+          type: "string",
+          description: "Tranzila test/sandbox terminal name",
+        },
+        testPassword: {
+          type: "string",
+          description: "Tranzila test terminal password",
+        },
+        testApiKey: {
+          type: "string",
+          description: "Tranzila test API v2 key (optional)",
+        },
+        liveTerminalName: {
+          type: "string",
+          description: "Tranzila live terminal name",
+        },
+        livePassword: {
+          type: "string",
+          description: "Tranzila live terminal password",
+        },
+        liveApiKey: {
+          type: "string",
+          description: "Tranzila live API v2 key (optional)",
+        },
+        useSandbox: {
+          type: "boolean",
+          description: "Whether to use test terminal (default: true)",
+        },
+        checkoutMode: {
+          type: "string",
+          enum: ["Iframe", "Redirect"],
+          description: "Checkout UI mode (default: Iframe)",
+        },
+      },
+      required: ["projectId"],
+    },
+  },
+
   // ==================== Plan Management ====================
   {
     name: "payvia_list_plans",
@@ -378,7 +427,7 @@ const tools: Tool[] = [
   {
     name: "payvia_create_plan",
     description:
-      "Create a new subscription plan. Interval can be 'Once' (one-time), 'Monthly', or 'Yearly'. Optionally assign to a tier.",
+      "Create a new subscription plan. Interval can be 'Once' (one-time), 'Monthly', or 'Yearly'. Optionally assign to a tier and choose payment provider.",
     inputSchema: {
       type: "object" as const,
       properties: {
@@ -400,7 +449,7 @@ const tools: Tool[] = [
         },
         currency: {
           type: "string",
-          description: "ISO 4217 currency code (e.g., 'USD', 'EUR')",
+          description: "ISO 4217 currency code (e.g., 'USD', 'EUR', 'ILS')",
         },
         interval: {
           type: "string",
@@ -414,6 +463,11 @@ const tools: Tool[] = [
         tierId: {
           type: "string",
           description: "Optional tier UUID to assign this plan to",
+        },
+        paymentProvider: {
+          type: "string",
+          enum: ["PayPal", "Tranzila"],
+          description: "Payment provider for this plan (default: PayPal)",
         },
       },
       required: ["projectId", "name", "price", "currency", "interval"],
@@ -756,6 +810,115 @@ const tools: Tool[] = [
     },
   },
 
+  {
+    name: "payvia_search_subscriber",
+    description:
+      "Search for a specific subscriber by email. Returns all subscriptions, payments, and status details for the matching customer(s). Useful for investigating individual subscriber issues.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        projectId: {
+          type: "string",
+          description: "The project UUID",
+        },
+        email: {
+          type: "string",
+          description: "Email to search for (partial match supported)",
+        },
+      },
+      required: ["projectId", "email"],
+    },
+  },
+
+  // ==================== Audit Logs ====================
+  {
+    name: "payvia_get_audit_logs",
+    description:
+      "Get extension audit logs for a project. Shows license checks, trial starts, feature gates, upgrade clicks, and more. Supports filtering by date range, email, customer ID, action type, and result. Returns paginated logs with statistics.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        projectId: {
+          type: "string",
+          description: "The project UUID",
+        },
+        page: {
+          type: "number",
+          description: "Page number (default: 1)",
+        },
+        pageSize: {
+          type: "number",
+          description: "Results per page (default: 50, max recommended: 100)",
+        },
+        email: {
+          type: "string",
+          description: "Filter by customer email (partial match)",
+        },
+        customerId: {
+          type: "string",
+          description: "Filter by customer ID (partial match)",
+        },
+        action: {
+          type: "string",
+          enum: [
+            "LICENSE_CHECK",
+            "LICENSE_RESET",
+            "LICENSE_CANCEL",
+            "FEATURE_GATE",
+            "UPGRADE_CLICK",
+            "CHECKOUT_START",
+            "EXTENSION_INSTALL",
+            "TRIAL_START",
+            "TRIAL_EXTEND",
+            "TRIAL_EXPIRE",
+          ],
+          description: "Filter by action type",
+        },
+        result: {
+          type: "string",
+          enum: [
+            "ACTIVE",
+            "INACTIVE",
+            "RESET",
+            "CANCELED",
+            "ERROR",
+            "SUCCESS",
+            "EXTENDED",
+            "EXPIRED",
+            "LOCKED",
+          ],
+          description: "Filter by result",
+        },
+        from: {
+          type: "string",
+          description: "Start date filter (inclusive), ISO format e.g. '2026-03-01'",
+        },
+        to: {
+          type: "string",
+          description: "End date filter (inclusive), ISO format e.g. '2026-03-21'",
+        },
+      },
+      required: ["projectId"],
+    },
+  },
+
+  // ==================== Admin ====================
+  {
+    name: "payvia_admin_query",
+    description:
+      "Execute a read-only SQL query against the PayVia database. Admin access required. Only SELECT queries allowed. Returns up to 1000 rows. Useful for investigating data issues.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {
+        sql: {
+          type: "string",
+          description: "SQL SELECT query to execute (e.g., \"SELECT * FROM subscriptions WHERE status = 'Canceled' LIMIT 10\")",
+        },
+      },
+      required: ["sql"],
+    },
+  },
+
   // ==================== License Validation ====================
   {
     name: "payvia_validate_license",
@@ -968,6 +1131,27 @@ async function handleTool(
       });
     }
 
+    case "payvia_configure_tranzila": {
+      const body: Record<string, unknown> = {
+        useSandbox: args.useSandbox ?? true,
+        checkoutMode: args.checkoutMode ?? "Iframe",
+      };
+      if (args.testTerminalName) {
+        body.testTerminalName = args.testTerminalName;
+        body.testPassword = args.testPassword;
+        if (args.testApiKey) body.testApiKey = args.testApiKey;
+      }
+      if (args.liveTerminalName) {
+        body.liveTerminalName = args.liveTerminalName;
+        body.livePassword = args.livePassword;
+        if (args.liveApiKey) body.liveApiKey = args.liveApiKey;
+      }
+      return await apiCall(`/api/v1/dashboard/projects/${args.projectId}/tranzila`, {
+        method: "POST",
+        body,
+      });
+    }
+
     // ==================== Plan Management ====================
     case "payvia_list_plans": {
       return await apiCall(`/api/v1/dashboard/projects/${args.projectId}/plans`);
@@ -984,6 +1168,7 @@ async function handleTool(
           interval: args.interval,
           showOnPricingPage: args.showOnPricingPage ?? true,
           tierId: args.tierId,
+          paymentProvider: args.paymentProvider,
         },
       });
     }
@@ -1120,6 +1305,36 @@ async function handleTool(
         { method: "DELETE" }
       );
       return { success: true, message: "Subscriber deleted successfully." };
+    }
+
+    case "payvia_search_subscriber": {
+      return await apiCall(
+        `/api/v1/dashboard/projects/${args.projectId}/subscribers/search?email=${encodeURIComponent(args.email as string)}`
+      );
+    }
+
+    // ==================== Audit Logs ====================
+    case "payvia_get_audit_logs": {
+      const params = new URLSearchParams();
+      if (args.page) params.set("page", String(args.page));
+      if (args.pageSize) params.set("pageSize", String(args.pageSize));
+      if (args.email) params.set("email", args.email as string);
+      if (args.customerId) params.set("customerId", args.customerId as string);
+      if (args.action) params.set("action", args.action as string);
+      if (args.result) params.set("result", args.result as string);
+      if (args.from) params.set("from", args.from as string);
+      if (args.to) params.set("to", args.to as string);
+      const qs = params.toString();
+      return await apiCall(
+        `/api/v1/dashboard/projects/${args.projectId}/audit-logs${qs ? `?${qs}` : ""}`
+      );
+    }
+
+    case "payvia_admin_query": {
+      return await apiCall("/api/v1/admin/query", {
+        method: "POST",
+        body: { sql: args.sql },
+      });
     }
 
     // ==================== License Validation ====================

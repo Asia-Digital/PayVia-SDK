@@ -1,7 +1,7 @@
 {
   "name": "@payvia-sdk/mcp-server",
-  "version": "1.1.1",
-  "description": "PayVia MCP Server - Enable AI agents to manage PayVia payment infrastructure",
+  "version": "1.3.0",
+  "description": "PayVia MCP Server - Enable AI agents to manage PayVia payment infrastructure (PayPal + Tranzila)",
   "main": "dist/index.js",
   "type": "module",
   "bin": {

@@ -1,7 +1,7 @@
 {
   "name": "@payvia-sdk/sdk",
-  "version": "1.1.4",
-  "description": "A lightweight JavaScript SDK for connecting your Chrome Extension / SaaS app to PayVia, for accepting PayPal payments and managing subscriptions, license validation, tier-based feature gating, trial management and monthly / yearly / lifetime plans",
+  "version": "1.2.0",
+  "description": "A lightweight JavaScript SDK for connecting your Chrome Extension / SaaS app to PayVia, for accepting PayPal and Tranzila payments and managing subscriptions, license validation, tier-based feature gating, trial management and monthly / yearly / lifetime plans",
   "main": "payvia.js",
   "type": "module",
   "exports": {
