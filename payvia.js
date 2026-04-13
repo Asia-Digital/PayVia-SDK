@@ -1,26 +1,166 @@
 /**
  * PayVia SDK for Chrome Extensions
- * 
+ *
  * ספריית JavaScript שהסולק מטמיע בתוסף הכרום שלו
  * מאפשרת בדיקת רישיון, פתיחת חלון תשלום, וניהול מנויים
- * 
+ *
  * Usage:
  * ```javascript
  * import PayVia from './payvia.js';
- * 
+ *
  * const payvia = PayVia('YOUR_API_KEY');
- * 
+ *
  * // Check if user paid
  * const user = await payvia.getUser();
  * if (user.paid) {
  *   // Enable premium features
  * }
- * 
+ *
  * // Open payment page
  * payvia.openPaymentPage();
  * ```
  */
 
+// ============ Type Definitions (JSDoc) ============
+// These @typedef blocks power the generated TypeScript declarations (payvia.d.ts).
+
+/**
+ * @typedef {Object} Tier
+ * @property {string} id
+ * @property {string} name
+ * @property {number} level - 0=Free, 1=Pro, 2=Super
+ * @property {string[]} features
+ */
+
+/**
+ * @typedef {Object} Identity
+ * @property {string} id - Unique user identifier (email or random pv_* ID)
+ * @property {string | null} email - User email (if known)
+ * @property {'google' | 'random'} source - How the identity was obtained
+ */
+
+/**
+ * @typedef {Object} PayViaUser
+ * @property {string} id
+ * @property {string | null} email
+ * @property {'google' | 'random'} identitySource
+ * @property {boolean} paid - True if status is ACTIVE or TRIAL
+ * @property {'ACTIVE' | 'TRIAL' | 'INACTIVE'} status
+ * @property {Tier | null} tier
+ * @property {string[]} features - Shortcut to tier.features
+ * @property {string[]} planIds
+ * @property {boolean} isTrial
+ * @property {Date | null} [trialExpiresAt]
+ * @property {number | null} [daysRemaining]
+ * @property {Date | null} [canceledAt]
+ * @property {Date | null} [currentPeriodEnd]
+ * @property {boolean} [isCanceled]
+ * @property {boolean} [cancelGraceActive]
+ * @property {boolean} fromCache - True if data came from cache
+ * @property {number | null} [checkedAt] - Unix timestamp in ms
+ * @property {number | null} [ttl] - Cache TTL in ms
+ * @property {string | null} [signature] - HMAC anti-tamper signature
+ * @property {string} [error] - Set only when a network error occurred and no valid cache existed
+ */
+
+/**
+ * @typedef {Object} TrialStartResult
+ * @property {string} subscriptionId
+ * @property {string} status
+ * @property {string} planId
+ * @property {string} planName
+ * @property {Date} trialExpiresAt
+ * @property {number} daysRemaining
+ */
+
+/**
+ * @typedef {Object} TrialStatus
+ * @property {string} status
+ * @property {Date | null} trialExpiresAt
+ * @property {number | null} daysRemaining
+ * @property {boolean} canConvert
+ * @property {string[]} planIds
+ */
+
+/**
+ * @typedef {Object} Plan
+ * @property {string} id
+ * @property {string} name
+ * @property {string} [description]
+ * @property {number} [price]
+ * @property {string} [currency]
+ * @property {string} [interval]
+ * @property {string} [tierId]
+ */
+
+/**
+ * @typedef {Object} OpenPaymentPageOptions
+ * @property {'pricing' | 'hosted' | 'direct'} [mode] - Checkout mode (default: 'pricing')
+ * @property {string} [planId] - Required for 'hosted' and 'direct' modes
+ * @property {string} [email] - Customer email (optional; PayPal collects it for anonymous users)
+ * @property {string} [successUrl] - Redirect URL after successful payment ('direct' mode only)
+ * @property {string} [cancelUrl] - Redirect URL if user cancels ('direct' mode only)
+ */
+
+/**
+ * @typedef {Object} OpenPaymentPageResult
+ * @property {string | null} [mode] - 'pricing' | 'hosted' for those modes; null/'iframe'/'redirect' for 'direct' mode (reflects PayVia backend response shape)
+ * @property {string} [pricingUrl]
+ * @property {string} [checkoutUrl]
+ * @property {string} [sessionId]
+ * @property {string} [provider] - 'PayPal' | 'Tranzila'
+ */
+
+/**
+ * @typedef {Object} CancelSubscriptionOptions
+ * @property {string} [planId] - Specific plan to cancel
+ * @property {string} [reason] - Cancellation reason
+ */
+
+/**
+ * @typedef {Object} CancelSubscriptionResult
+ * @property {boolean} success
+ * @property {string} message
+ * @property {string} [canceledPlanId]
+ */
+
+/**
+ * @typedef {Object} ResetLicenseResult
+ * @property {string} message
+ */
+
+/**
+ * @callback OnPaidCallback
+ * @param {PayViaUser} user
+ * @returns {void}
+ */
+
+/**
+ * @typedef {Object} PayViaInstance
+ * @property {(options?: { forceRefresh?: boolean }) => Promise<PayViaUser>} getUser
+ * @property {() => Promise<PayViaUser>} refresh
+ * @property {() => Promise<void>} refreshLicenseCache
+ * @property {(featureName: string) => Promise<boolean>} hasFeature
+ * @property {(requiredLevel: number) => Promise<boolean>} hasTierLevel
+ * @property {() => Promise<Tier | null>} getTier
+ * @property {() => Promise<TrialStartResult | null>} startTrial
+ * @property {() => Promise<TrialStatus>} getTrialStatus
+ * @property {() => Promise<boolean>} isFirstRun
+ * @property {() => Promise<void>} markFirstRunDone
+ * @property {() => Promise<boolean>} needsEmailForPayment
+ * @property {() => Promise<Identity>} getIdentity
+ * @property {(options?: OpenPaymentPageOptions) => Promise<OpenPaymentPageResult>} openPaymentPage
+ * @property {(callback: OnPaidCallback) => (() => void)} onPaid
+ * @property {() => Promise<Plan[]>} getPlans
+ * @property {() => Promise<ResetLicenseResult>} resetLicense
+ * @property {(options?: CancelSubscriptionOptions) => Promise<CancelSubscriptionResult>} cancelSubscription
+ */
+
+/**
+ * Create a PayVia SDK instance.
+ * @param {string} apiKey - API key from the PayVia dashboard
+ * @returns {PayViaInstance} PayVia SDK instance
+ */
 function PayVia(apiKey) {
     if (!apiKey) {
         throw new Error('PayVia: API key is required');
@@ -32,8 +172,11 @@ function PayVia(apiKey) {
     const DEFAULT_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
     const GRACE_PERIOD_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 
-    const instance = {};
+    /** @type {PayViaInstance} */
+    const instance = /** @type {PayViaInstance} */ ({});
+    /** @type {PayViaUser | null} */
     let cachedUser = null;
+    /** @type {Promise<PayViaUser> | null} */
     let userPromise = null;
 
     // ============ License Cache Storage ============
@@ -233,10 +376,9 @@ function PayVia(apiKey) {
     }
 
     /**
-     * Get user's payment status
+     * Get user's payment status.
      * Uses cache first, then server. Falls back to cache during network errors.
-     * @param {Object} options - Options
-     * @param {boolean} options.forceRefresh - Force fetch from server
+     * @param {{ forceRefresh?: boolean }} [options]
      * @returns {Promise<PayViaUser>} User object with payment status
      */
     instance.getUser = async function (options = {}) {
@@ -395,8 +537,8 @@ function PayVia(apiKey) {
     };
 
     /**
-     * Get the user's current tier info
-     * @returns {Promise<{id: string, name: string, level: number, features: string[]}|null>}
+     * Get the user's current tier info.
+     * @returns {Promise<Tier | null>}
      */
     instance.getTier = async function () {
         const user = await instance.getUser();
@@ -404,10 +546,10 @@ function PayVia(apiKey) {
     };
 
     /**
-     * Start a trial for the current user
-     * Call this when user first installs/uses the extension
-     * Idempotent: if user already has a trial/active subscription, returns existing info
-     * @returns {Promise<{subscriptionId: string, status: string, planId: string, planName: string, trialExpiresAt: Date, daysRemaining: number} | null>}
+     * Start a trial for the current user.
+     * Call this when user first installs/uses the extension.
+     * Idempotent: if user already has a trial/active subscription, returns existing info.
+     * @returns {Promise<TrialStartResult | null>}
      */
     instance.startTrial = async function () {
         try {
@@ -438,8 +580,8 @@ function PayVia(apiKey) {
     };
 
     /**
-     * Get trial status for the current user
-     * @returns {Promise<{status: string, trialExpiresAt: Date | null, daysRemaining: number | null, canConvert: boolean, planIds: string[]}>}
+     * Get trial status for the current user.
+     * @returns {Promise<TrialStatus>}
      */
     instance.getTrialStatus = async function () {
         try {
@@ -486,6 +628,7 @@ function PayVia(apiKey) {
 
     /**
      * Mark first run as complete
+     * @returns {Promise<void>}
      */
     instance.markFirstRunDone = async function () {
         return new Promise((resolve) => {
@@ -508,24 +651,17 @@ function PayVia(apiKey) {
     };
 
     /**
-     * Get the current user identity info
-     * @returns {Promise<{id: string, email: string | null, source: 'google' | 'random'}>}
+     * Get the current user identity info.
+     * @returns {Promise<Identity>}
      */
     instance.getIdentity = async function () {
         return getUserIdentity();
     };
 
     /**
-     * Open payment page for the user
-     * @param {Object} options - Payment options
-     * @param {string} options.planId - Plan ID to purchase (required for direct/hosted modes)
-     * @param {string} options.email - Customer email
-     * @param {'pricing'|'hosted'|'direct'} options.mode - Checkout mode:
-     *   - 'pricing': Shows all plans for user to choose (default, most secure)
-     *   - 'hosted': Goes directly to checkout for specific plan
-     *   - 'direct': Bypasses PayVia, goes straight to PayPal
-     * @param {string} options.successUrl - URL to redirect after successful payment (direct mode only)
-     * @param {string} options.cancelUrl - URL to redirect if user cancels (direct mode only)
+     * Open payment page for the user.
+     * @param {OpenPaymentPageOptions} [options] - Payment options
+     * @returns {Promise<OpenPaymentPageResult>}
      */
     instance.openPaymentPage = async function (options = {}) {
         const identity = await getUserIdentity();
@@ -619,8 +755,9 @@ function PayVia(apiKey) {
     };
 
     /**
-     * Listen for payment status changes
-     * @param {Function} callback - Called when payment status changes
+     * Listen for payment status changes (polls every 5 seconds).
+     * @param {OnPaidCallback} callback - Called when payment status changes
+     * @returns {() => void} Unsubscribe function - call to stop listening
      */
     instance.onPaid = function (callback) {
         // Poll for status changes every 5 seconds when tab is visible
@@ -661,7 +798,7 @@ function PayVia(apiKey) {
     /**
      * Reset the user's license (delete all subscriptions).
      * This is for demo/testing purposes only.
-     * @returns {Promise<{message: string}>}
+     * @returns {Promise<ResetLicenseResult>}
      */
     instance.resetLicense = async function () {
         const identity = await getUserIdentity();
@@ -674,11 +811,9 @@ function PayVia(apiKey) {
     };
 
     /**
-     * Cancel a subscription for the current user
-     * @param {Object} options - Cancel options
-     * @param {string} options.planId - Specific plan to cancel (optional)
-     * @param {string} options.reason - Cancellation reason (optional)
-     * @returns {Promise<{success: boolean, message: string, canceledPlanId: string}>}
+     * Cancel a subscription for the current user.
+     * @param {CancelSubscriptionOptions} [options]
+     * @returns {Promise<CancelSubscriptionResult>}
      */
     instance.cancelSubscription = async function (options = {}) {
         const identity = await getUserIdentity();

@@ -26,6 +26,24 @@ Copy `payvia.js` into your extension folder.
 npm install @payvia-sdk/sdk
 ```
 
+## TypeScript Support
+
+The SDK ships with built-in TypeScript declarations - no `@types/*` package needed:
+
+```typescript
+import PayVia from '@payvia-sdk/sdk';
+import type { PayViaUser, Tier } from '@payvia-sdk/sdk';
+
+const payvia = PayVia(process.env.PAYVIA_API_KEY!);
+
+const user: PayViaUser = await payvia.getUser();
+if (user.tier && user.tier.level >= 1) {
+  // Pro or above
+}
+```
+
+All methods, options, and return types have full IntelliSense support.
+
 ## Basic Usage
 
 ### 1. Add to manifest.json
